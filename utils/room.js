@@ -5,7 +5,7 @@ export default class Room {
       value: {
         name: name,
         score: 0,
-        role: 'audience', /** performer | audience */
+        role: 'performer', /** performer | audience */
         present: true,
         guess: false,
         avatar: avatar
@@ -16,6 +16,7 @@ export default class Room {
     });
     this.admin = socketId;
     this.currentUser = null;
+    this.currentActive = 0;
     this.status = {
       mode: "ready" /** 'ready' | 'select' | 'draw' | 'wait' | 'end' */,
       mssg: null,
@@ -23,7 +24,7 @@ export default class Room {
     this.drawing = [];
     this.limit = {
       total: 8,           
-      current: 1,          
+      current: 1,           
     };
     this.timers = {
       timerId: null,
@@ -50,7 +51,7 @@ export default class Room {
         score: 0,
         role: 'audience',
         present: true,
-        guess: true,
+        guess: false,
         avatar: avatar 
       },
       writable: true,
@@ -75,6 +76,8 @@ export default class Room {
   updateToSelectStatus() {
     this.status.mode = 'select';
 
+
+
     /**Randomly pick 3 words */
     const wordList = this.wordList[Math.floor(Math.random() * this.wordList.length)];
 
@@ -88,52 +91,60 @@ export default class Room {
     
     const playerList = Object.keys(this.participant);
 
-    // let previousUser = playerList[0];
     let index = -1;
 
-    playerList.forEach((key,i) => {
-      if(this.participant[key].role == 'performer'){
-        index = i;
-      }
-        this.participant[key].role = 'audience';
-    });
 
-    // if(this.currentUser !== null){
-    //     for(let i = 1; i< playerList.length; i++){
-    //         if(previousUser === this.currentUser)
-    //             {
-    //                 if(i === playerList.length-1){
-    //                     index = 0;
-    //                     this.rounds.current++;
-    //                     console.log("************************************************************************************************************");
-    //                     // if(this.rounds.current > this.rounds.total){
-                          
-    //                     // }
-    //                     break;
-    //                 }else{
-    //                     index = i;
-    //                     console.log("************************************-------------------************************************************************************");
-    //                     break;
-    //                 }
-    //             }
-    //     }
-    // }
-
-
-if(index === playerList.length-1){
+if(this.currentUser === null){
   index = 0;
+  this.rounds.current= 1;
+  this.currentUser = playerList[index];
 }else{
-  index = index + 1;
+
+
+
+
+      // let previousUser = playerList[0];
+
+
+      playerList.forEach((key,i) => {
+        if(this.participant[key].role == 'performer'){
+          index = i;
+        }
+          this.participant[key].role = 'audience';
+      });
+  
+  if(index === playerList.length-1){
+    index = 0;
+  }else{
+    index = index + 1;
+  }
+  
+  if(index == 0){
+    this.rounds.current=this.rounds.current + 1;
+  }
+  
+  console.log("update round ---------------> ",index,playerList[index], this.participant);
+  
+  let stop = false;
+  let circularIndex = index;
+  while(!stop)
+  {
+      if(this.participant[playerList[circularIndex]].present == true){
+      this.participant[playerList[circularIndex]].role = 'performer';
+      this.currentUser = playerList[circularIndex];
+      stop = true;
+    }else{
+      circularIndex = (circularIndex + 1) % playerList.length;
+    }
+  }
+
+
+
+
+
+
 }
 
-if(index == 0){
-  this.rounds.current=this.rounds.current + 1;
-}
-
-console.log("update round ---------------> ",index,playerList[index], this.participant);
-
-    this.participant[playerList[index]].role = 'performer';
-    this.currentUser = playerList[index];
     this.timers.timerLimit = 5;
 
     return { currentUser: this.participant[playerList[index]]};

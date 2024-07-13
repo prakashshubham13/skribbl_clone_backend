@@ -110,11 +110,12 @@ function triggerDraw(roomId, socket, io, selectedWord) {
 }
 
 function generateString(length) {
-  const characters ='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
+  const characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
   const charactersLength = characters.length;
-  for ( let i = 0; i < length; i++ ) {
-      result += characters.charAt(Math.floor(Math.random() * charactersLength));
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength));
   }
   return result;
 }
@@ -132,14 +133,23 @@ function generateHint(roomInstance) {
   return hint;
 }
 
+function resetGuess(roomId,socket,io){
+  const roomInstance = rooms.get(roomId);
+  Object.keys(roomInstance.participant).forEach(id => {
+    roomInstance.participant[id].guess = false;
+});
+updatePlayer(roomId,socket, io);
+}
+
 function triggerWait(roomId, socket, io) {
   /**check if round has ended */
 
-  const roomInstance = rooms.get(roomId); 
+  const roomInstance = rooms.get(roomId);
   clearInterval(roomInstance.timers.timerId);
   roomInstance.status.mode = "wait";
   roomInstance.updateRound();
-  if (roomInstance.rounds.current > roomInstance.rounds.total) {
+  resetGuess(roomId,socket,io);
+  if (roomInstance.rounds.current > roomInstance.rounds.total || roomInstance.limit.current < 2) {
     triggerEnd(roomId, socket, io);
   } else {
     io.to(roomId).emit("notify", {
@@ -163,7 +173,7 @@ function triggerSelect(roomId, socket, io) {
   clearInterval(roomInstance.timers.timerId);
   roomInstance.drawing = [];
   roomInstance.status.mode = "select";
-  const { wordList } = roomInstance.updateToSelectStatus(); 
+  const { wordList } = roomInstance.updateToSelectStatus();
 
   /** notify audience - user is selecting word*/
   Object.keys(roomInstance.participant).forEach((user) => {
@@ -225,26 +235,40 @@ function triggerEnd(roomId, socket, io) {
   });
 }
 
-function updateScore(roomId, socket, io) {      
+function updateScore(roomId, socket, io) {
   const roomInstance = rooms.get(roomId);
   roomInstance.participant[socket.id].score +=
-    roomInstance.timers.timerLimit * 100;
+    roomInstance.timers.timerLimit * 5;
+    roomInstance.participant[roomInstance.admin].score += 50;
   roomInstance.participant[socket.id].guess = true;
   updatePlayer(roomId, socket, io);
+  // let flag = !Object.keys(roomInstance.participant).some(id => {
+  //   return roomInstance.participant[id].present && !roomInstance.participant[id].guess;
+  // });
+  let guessCount = 0;
+  Object.keys(roomInstance.participant).forEach((data)=>{
+    if(roomInstance.participant[data].guess){
+      guessCount++;
+    }
+  })
+  console.log(guessCount, "=================================================================="  , roomInstance.limit.current);
+  if(guessCount >= roomInstance.limit.current - 1)
+    triggerWait(roomId,socket,io);
   /**check if all player has guess the word */
 }
 
 function updatePlayer(roomId, socket, io) {
   const roomInstance = rooms.get(roomId);
   io.to(roomId).emit("player-info", {
-    data: roomInstance.participant, 
+    data: roomInstance.participant,
   });
 }
 
 io.on("connection", (socket) => {
+  console.log("--------------------------------------");
 
   socket.on("join", ({ roomId, name, avatar }) => {
-    if (rooms.has(roomId)) {   
+    if (rooms.has(roomId)) {
       socket.join(roomId);
       const roomInstance = rooms.get(roomId);
       roomInstance.addParticipant(socket.id, name, avatar);
@@ -252,50 +276,48 @@ io.on("connection", (socket) => {
     } else {
       socket.emit("join-error", { msg: "Server error" });
     }
-  }); 
+  });
 
   socket.on("create-room", ({ name, avatar }) => {
     let roomId = generateString(6);
-    while (rooms.has(roomId)){ 
+    while (rooms.has(roomId)) {
       roomId = generateString(6);
-    } 
-      socket.join(roomId);
-      console.log(name, roomId,"-------------------");
-      const roomInstance = new Room(socket.id, name, words, avatar);
-      rooms.set(roomId, roomInstance);
-      socket.emit("joined", { msg: "joined", roomId: roomId });
+    }
+    socket.join(roomId);
+    console.log(name, roomId, "-------------------");
+    const roomInstance = new Room(socket.id, name, words, avatar);
+    rooms.set(roomId, roomInstance);
+    socket.emit("joined", { msg: "joined", roomId: roomId });
     // } else {
     //   socket.emit("join-error", { msg: "Server error" });
     // }
-  }); 
+  });
 
   socket.on("in-game", ({ roomId }) => {
-    console.log(roomId,rooms);  
-    const roomInstance = rooms.get(roomId); 
+    console.log(roomId, rooms);
+    const roomInstance = rooms.get(roomId);
 
     updatePlayer(roomId, socket, io);
     const config = {
       ready: roomInstance.admin == socket.id ? false : true,
-      canvas: false, 
+      canvas: false,
       gameStart: roomInstance.status.mode == "ready" ? false : true,
       totalRound: roomInstance.rounds.total,
     };
-    socket.emit("notify", { config: config, status: "ready" });  
+    socket.emit("notify", { config: config, status: "ready" });
     io.sockets.in(roomId).emit("play", { sound: "join" });
     /**if game not started (ready) */
     switch (roomInstance.status.mode) {
-      case "ready":   
-        {
-          break;
-        }
-      case "select":
-        {
-          socket.emit("notify", {
-            status: "selecting",
-            mssg: `${roomInstance.participant[user].name} is selecting the word`,
-          });
-          break;
-        }
+      case "ready": {
+        break;
+      }
+      case "select": {
+        socket.emit("notify", {
+          status: "selecting",
+          mssg: `${roomInstance.participant[user].name} is selecting the word`,
+        });
+        break;
+      }
       case "draw": {
         console.log(roomInstance);
         /**sent current draw */
@@ -320,7 +342,7 @@ io.on("connection", (socket) => {
       case "end": {
         /**send end screen data */
         break;
-      } 
+      }
       default:
         break;
     }
@@ -328,9 +350,9 @@ io.on("connection", (socket) => {
 
   socket.on("start-game", ({ roomId }) => {
     const roomInstance = rooms.get(roomId);
-    const checkJoin = roomInstance.startGame(); 
-    if (checkJoin.flag) {        
-      roomInstance.updateRound();     
+    const checkJoin = roomInstance.startGame();
+    if (checkJoin.flag) {
+      roomInstance.updateRound();
       triggerSelect(roomId, socket, io);
     } else {
       io.to(roomId).emit("notify", {
@@ -342,7 +364,7 @@ io.on("connection", (socket) => {
 
   socket.on("selected", ({ roomId, selectedWord }) => {
     triggerDraw(roomId, socket, io, selectedWord);
-  }); 
+  });
 
   socket.on("performer-drawing", ({ roomId, drawArray }) => {
     /**Trigger Draw */
@@ -366,12 +388,12 @@ io.on("connection", (socket) => {
       if (roomInstance.currentWord.current == guess) {
         /**update chat green to sender*/
         socket.emit("send-chat", {
-          name:roomInstance.participant[socket.id].name,
+          name: roomInstance.participant[socket.id].name,
           data: guess,
           color: true,
         });
         io.to(roomInstance.currentUser).emit("send-chat", {
-          name:roomInstance.participant[socket.id].name,
+          name: roomInstance.participant[socket.id].name,
           data: guess,
           color: true,
         });
@@ -380,7 +402,7 @@ io.on("connection", (socket) => {
         updateScore(roomId, socket, io);
       } else {
         io.to(roomId).emit("send-chat", {
-          name:roomInstance.participant[socket.id].name,
+          name: roomInstance.participant[socket.id].name,
           data: guess,
           color: false,
         });
@@ -389,8 +411,8 @@ io.on("connection", (socket) => {
     } else if (roomInstance.currentUser != socket.id) {
       /**normal chat */
       io.to(roomId).emit("send-chat", {
-        name:roomInstance.participant[socket.id].name,      
-        data: guess,   
+        name: roomInstance.participant[socket.id].name,
+        data: guess,
         color: false,
       });
     } else {
@@ -400,6 +422,22 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     /**update user list */
     /**update gsme status */
+    console.log('leave',socket.id,socket.rooms);
+    rooms.forEach((data,roomId)=>{
+      if(socket.id in data.participant){
+        const roomInstance = rooms.get(roomId);
+        console.log(roomInstance.participant[socket.id].present);
+        roomInstance.participant[socket.id].present = false;
+        roomInstance.limit.current -= 1;
+        console.log(roomInstance.participant[socket.id].present);
+        updatePlayer(roomId, socket, io);
+        if(socket.id === roomInstance.currentUser)
+        triggerWait(roomId, socket, io);
+
+      } 
+      // console.log(data,"------------",room);
+      console.log("****************************************");
+    })
   });
 });
 
