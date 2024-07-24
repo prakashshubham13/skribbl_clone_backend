@@ -228,10 +228,15 @@ function triggerEnd(roomId, socket, io) {
   const roomInstance = rooms.get(roomId);
   roomInstance.status.mode = "end";
   clearInterval(roomInstance.timers.timerId);
+
+  /**Calculate rank */
+  let rankArray = roomInstance.participant;
+
+
   io.to(roomId).emit("notify", {
     status: "end",
     data: [],
-    mssg: "",
+    mssg: ``,
   });
 }
 
@@ -379,6 +384,7 @@ io.on("connection", (socket) => {
 
   socket.on("chat", ({ roomId, guess }) => {
     const roomInstance = rooms.get(roomId);
+    guess = guess.toLowerCase();
     /**check if current status is draw */
     if (
       roomInstance.status.mode == "draw" &&
