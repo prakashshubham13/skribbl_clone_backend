@@ -5,6 +5,7 @@ import * as dotenv from "dotenv";
 import { createServer } from "http";
 import Room from "./utils/room.js";
 
+try{
 const app = express();
 dotenv.config();
 const isDev = app.settings.env === "development";
@@ -279,7 +280,7 @@ io.on("connection", (socket) => {
       roomInstance.addParticipant(socket.id, name, avatar);
       socket.emit("joined", { msg: "joined", roomId: roomId });
     } else {
-      socket.emit("join-error", { msg: "Server error" });
+      socket.emit("join-error", { msg: "Server error - No such room exist" });
     }
   });
 
@@ -448,3 +449,7 @@ io.on("connection", (socket) => {
 });
 
 httpServer.listen(5000, () => console.log("Started"));
+}
+catch(err){
+  console.log(err);
+} 

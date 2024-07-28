@@ -23,7 +23,7 @@ export default class Room {
     };
     this.drawing = [];
     this.limit = {
-      total: 8,           
+      total: 4,           
       current: 1,           
     };
     this.timers = {
@@ -32,7 +32,7 @@ export default class Room {
     };
     this.rounds = {
       current: 0,
-      total: 3,
+      total: 1,
     };
     this.wordList = wordList;
     this.currentWord = {
@@ -51,7 +51,7 @@ export default class Room {
         score: 0,
         role: 'audience',
         present: true,
-        guess: false,
+        guess: false, 
         avatar: avatar 
       },
       writable: true,
